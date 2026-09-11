@@ -2,132 +2,69 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Color Spaces - CMYK Inspector</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Three.js Color Spaces - Adaptive Desktop/Mobile Visualizer</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #000;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: none; 
         }
-        
-        body.inspector-mode canvas {
-            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2300ffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l5.5-5.5"/><path d="M2.5 16.5l5 5"/><path d="M12 18.5l-4.5-4.5"/><path d="M17 12l-7.5-7.5"/><path d="M22 2l-5.5 5.5"/><path d="M17 12l4 4-2 2-4-4"/></svg>') 0 24, crosshair !important;
-        }
+        canvas { display: block; }
 
-        canvas {
-            display: block;
-        }
+        /* UI Containers */
         #ui-container {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #fff;
-            background: rgba(20, 20, 20, 0.8);
-            padding: 15px 20px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            pointer-events: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            width: 250px;
-            z-index: 10;
+            top: 20px; left: 20px; color: #fff;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px; border-radius: 8px; border: 1px solid #333;
+            pointer-events: auto; display: flex; flex-direction: column; gap: 12px; width: 230px; z-index: 10;
         }
-        #info {
-            position: absolute;
-            bottom: 15px;
-            left: 20px;
-            color: #888;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 10;
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        .checkbox-group { display: flex; justify-content: space-between; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 4px; flex-wrap: wrap; }
+        label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
+        input[type="range"], input[type="checkbox"] { cursor: pointer; }
+
+        /* Desktop Cursor Styles */
+        body.desktop-mode canvas {
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2300ffff" stroke-width="2"><path d="M2 22l5.5-5.5"/><path d="M2.5 16.5l5 5"/><path d="M12 18.5l-4.5-4.5"/><path d="M17 12l-7.5-7.5"/><path d="M22 2l-5.5 5.5"/><path d="M17 12l4 4-2 2-4-4"/></svg>') 0 24, crosshair !important;
         }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            pointer-events: auto;
+
+        /* Mobile Specific Overlays */
+        #space-indicator {
+            position: absolute; top: 20px; right: 20px; color: rgba(255,255,255,0.8);
+            font-size: 22px; font-weight: 800; letter-spacing: 2px; text-align: right; z-index: 5; display: none; pointer-events: none;
         }
-        .checkbox-group {
-            display: flex;
-            justify-content: space-between;
-            background: rgba(0,0,0,0.5);
-            padding: 8px;
-            border-radius: 4px;
-            flex-wrap: wrap; 
+        .swipe-hint { font-size: 9px; font-weight: 400; color: #0ff; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+        #inspector-card {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: calc(100% - 40px); max-width: 380px; background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(10px); border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 14px;
+            padding: 14px; display: none; align-items: center; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 10; pointer-events: none;
         }
-        label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        input[type="range"] {
-            width: 100%;
-            cursor: pointer;
-            pointer-events: auto;
-        }
-        input[type="checkbox"] {
-            cursor: pointer;
-            pointer-events: auto;
-        }
-        .viewport-container {
-            position: absolute;
-            bottom: 30px;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            pointer-events: none;
-            z-index: 5;
-        }
-        .viewport-label {
-            color: rgba(255, 255, 255, 0.5);
-            font-family: sans-serif; 
-            font-size: 32px; 
-            font-weight: bold;
-            letter-spacing: 2px;
-        }
-        
-        .viewport-inspector-panel {
-            position: absolute;
-            top: 20px;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            pointer-events: none;
-            z-index: 10;
-            transform: translateX(-100%);
-        }
-        .viewport-readout-text {
-            font-family: monospace;
-            font-size: 15px;
-            color: #0ff;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 8px 14px;
-            border-radius: 6px;
-            border: 1px solid rgba(0, 255, 255, 0.4);
-            white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-        .viewport-swatch {
-            width: 38px;
-            height: 38px;
-            border-radius: 8px;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-        }
+        #inspector-card.active { display: flex; }
+        .swatch-box { width: 50px; height: 50px; border-radius: 10px; background-color: #333; border: 2px solid rgba(255,255,255,0.8); flex-shrink: 0; }
+        .values-grid { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 3px; width: 100%; font-family: monospace; font-size: 12px; }
+        .val-label { color: #888; font-weight: bold; }
+        .val-data { color: #fff; text-align: left; }
+        .val-data.highlight { color: #0ff; font-weight: bold; }
+
+        /* Desktop Viewport Labels & Panels */
+        .viewport-container { position: absolute; bottom: 30px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 5; }
+        .viewport-label { color: rgba(255, 255, 255, 0.4); font-size: 28px; font-weight: bold; letter-spacing: 2px; }
+        .viewport-inspector-panel { position: absolute; top: 20px; display: none; align-items: center; gap: 10px; pointer-events: none; z-index: 10; transform: translateX(-100%); }
+        .viewport-readout-text { font-family: monospace; font-size: 13px; color: #0ff; background: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(0,255,255,0.4); }
+        .viewport-swatch { width: 32px; height: 32px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.8); }
     </style>
 </head>
 <body>
     <div id="ui-container">
-        <div class="control-group">
-            <label>Active Color Spaces</label>
+        <div class="control-group" id="desktop-checkboxes">
+            <label>Active Spaces (Desktop)</label>
             <div class="checkbox-group">
                 <label><input type="checkbox" id="check-rgb" checked> RGB</label>
                 <label><input type="checkbox" id="check-hsv" checked> HSV</label>
@@ -135,40 +72,55 @@
                 <label><input type="checkbox" id="check-cmyk" checked> CMYK</label>
             </div>
         </div>
-
         <div class="control-group">
-            <label><input type="checkbox" id="check-turbulence" checked> Enable Turbulence</label>
+            <label><input type="checkbox" id="check-turbulence" checked> Turbulence Mode</label>
         </div>
-
         <div class="control-group">
             <label for="satSlider">Saturation <span id="satValue">1.0</span></label>
             <input type="range" id="satSlider" min="0.0" max="1.0" step="0.05" value="1.0">
         </div>
-
         <div class="control-group">
             <label for="hueMinSlider">Hue Min (<span id="hueMinValue">0</span>°)</label>
             <input type="range" id="hueMinSlider" min="0" max="360" step="5" value="0">
         </div>
-
         <div class="control-group">
             <label for="hueMaxSlider">Hue Max (<span id="hueMaxValue">360</span>°)</label>
             <input type="range" id="hueMaxSlider" min="0" max="360" step="5" value="360">
         </div>
     </div>
 
-    <div id="info">Hover to focus viewport | Left Click: Rotate | Scroll: Zoom | Right Click (Turbulence OFF): Pan</div>
+    <!-- Mobile Elements -->
+    <div id="space-indicator">
+        <div id="active-space-name">RGB</div>
+        <div class="swipe-hint">↕ Swipe to Change</div>
+    </div>
+    <div id="inspector-card">
+        <div class="swatch-box" id="ui-swatch"></div>
+        <div class="values-grid">
+            <div class="val-label">RGB</div><div class="val-data" id="val-rgb">---</div>
+            <div class="val-label">HSV</div><div class="val-data" id="val-hsv">---</div>
+            <div class="val-label">HSL</div><div class="val-data" id="val-hsl">---</div>
+            <div class="val-label">CMYK</div><div class="val-data" id="val-cmyk">---</div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     
     <script>
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) document.body.classList.add('desktop-mode');
+        else {
+            document.getElementById('space-indicator').style.display = 'block';
+            document.getElementById('desktop-checkboxes').style.display = 'none';
+        }
+
         // --- MATH HELPERS ---
         function rgbToHsv(r, g, b) {
             let max = Math.max(r, g, b), min = Math.min(r, g, b);
-            let h, s, v = max;
-            let d = max - min;
+            let h, s, v = max, d = max - min;
             s = max == 0 ? 0 : d / max;
-            if (max == min) { h = 0; } 
+            if (max == min) h = 0; 
             else {
                 switch (max) {
                     case r: h = (g - b) / d + (g < b ? 6 : 0); break;
@@ -183,13 +135,12 @@
         function rgbToHsl(r, g, b) {
             let max = Math.max(r, g, b), min = Math.min(r, g, b);
             let h, s, l = (max + min) / 2;
-            if (max == min) { h = s = 0; } 
+            if (max == min) h = s = 0; 
             else {
                 let d = max - min;
                 s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-                if (s === 0) {
-                    h = 0;
-                } else {
+                if (s === 0) h = 0;
+                else {
                     switch (max) {
                         case r: h = (g - b) / d + (g < b ? 6 : 0); break;
                         case g: h = (b - r) / d + 2; break;
@@ -212,641 +163,450 @@
 
         function createLabel(text, nx, ny, nz) {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 256;
+            canvas.width = 512; canvas.height = 256;
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.font = 'bold 64px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 64px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.shadowColor = "rgba(0, 0, 0, 1)";
-            ctx.shadowBlur = 10;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
+            ctx.shadowColor = "rgba(0, 0, 0, 1)"; ctx.shadowBlur = 10; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
             ctx.fillText(text, canvas.width / 2, canvas.height / 2);
             
             const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
-            const sprite = new THREE.Sprite(material);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
             sprite.userData = { nx, ny, nz };
             return sprite;
         }
 
-        // --- GLOW TEXTURE GENERATOR ---
         function createGlowTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = 128; canvas.height = 128;
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
             gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
             gradient.addColorStop(0.15, 'rgba(255, 255, 255, 0.8)');
             gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.2)');
             gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 128, 128);
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, 128, 128);
             return new THREE.CanvasTexture(canvas);
         }
         const sharedGlowTexture = createGlowTexture();
 
         function createAxisLines(type) {
             const group = new THREE.Group();
-            const mat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.8, depthWrite: false });
-
-            function addLine(p1, p2, capDir) {
-                const pts = [new THREE.Vector3(...p1), new THREE.Vector3(...p2)];
-                const geo = new THREE.BufferGeometry().setFromPoints(pts);
-                group.add(new THREE.Line(geo, mat));
-
-                if (capDir) {
-                    const capPts = [
-                        new THREE.Vector3().copy(pts[1]).sub(capDir),
-                        new THREE.Vector3().copy(pts[1]).add(capDir)
-                    ];
-                    const capGeo = new THREE.BufferGeometry().setFromPoints(capPts);
-                    group.add(new THREE.Line(capGeo, mat));
-                }
-            }
-
-            const capSize = 0.04; 
-
-            if (type === 'RGB' || type === 'CMYK') {
-                const off = 0.6; 
-                const blk = [-off, -off, -off];
-                addLine(blk, [off, -off, -off], new THREE.Vector3(0, 0, capSize)); // X axis
-                addLine(blk, [-off, off, -off], new THREE.Vector3(capSize, 0, 0)); // Y axis
-                addLine(blk, [-off, -off, off], new THREE.Vector3(capSize, 0, 0)); // Z axis
-                addLine([-0.55, -0.55, -0.55], [0.55, 0.55, 0.55]); // Diagonal
-            } else if (type === 'HSV' || type === 'HSL') {
-                addLine([-0.8, -0.5, 0], [-0.8, 0.5, 0], new THREE.Vector3(capSize, 0, 0)); 
-
-                const offY = -0.8;
-                const maxSat = 0.6; 
-
-                addLine([0, offY, 0], [maxSat, offY, 0], new THREE.Vector3(0, 0, capSize));
-
-                const circlePts = [];
-                const circleSegments = 64;
-                for (let i = 0; i <= circleSegments; i++) {
-                    const theta = (i / circleSegments) * Math.PI * 2;
-                    circlePts.push(new THREE.Vector3(maxSat * Math.cos(theta), offY, maxSat * Math.sin(theta)));
-                }
-                const circleGeo = new THREE.BufferGeometry().setFromPoints(circlePts);
-                group.add(new THREE.Line(circleGeo, mat));
-
-                const tickCount = 12;
-                for (let i = 0; i < tickCount; i++) {
-                    const theta = (i / tickCount) * Math.PI * 2;
-                    const innerR = maxSat - 0.03;
-                    const outerR = maxSat + 0.03;
-                    addLine(
-                        [innerR * Math.cos(theta), offY, innerR * Math.sin(theta)],
-                        [outerR * Math.cos(theta), offY, outerR * Math.sin(theta)]
-                    );
-                }
-            }
+            group.userData = { type: type };
+            const mat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.6, depthWrite: false });
+            function addLine(p1, p2) { group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...p1), new THREE.Vector3(...p2)]), mat)); }
             
-            group.traverse(child => { if (child.isLine) child.frustumCulled = false; });
+            const labels = [];
+            if (type === 'RGB' || type === 'CMYK') {
+                const off = 0.6; const blk = [-off, -off, -off];
+                addLine(blk, [off, -off, -off]); addLine(blk, [-off, off, -off]); addLine(blk, [-off, -off, off]);
+                addLine([-0.55, -0.55, -0.55], [0.55, 0.55, 0.55]);
+                labels.push(createLabel(type === 'RGB' ? 'R' : 'C', 0.7, -0.6, -0.6), createLabel(type === 'RGB' ? 'G' : 'M', -0.6, 0.7, -0.6), createLabel(type === 'RGB' ? 'B' : 'Y', -0.6, -0.6, 0.7));
+            } else if (type === 'HSV' || type === 'HSL') {
+                addLine([-0.8, -0.5, 0], [-0.8, 0.5, 0]); 
+                const offY = -0.8; const maxSat = 0.6; addLine([0, offY, 0], [maxSat, offY, 0]);
+                const circlePts = [];
+                for (let i = 0; i <= 64; i++) {
+                    const t = (i / 64) * Math.PI * 2;
+                    circlePts.push(new THREE.Vector3(maxSat * Math.cos(t), offY, maxSat * Math.sin(t)));
+                }
+                group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts), mat));
+                labels.push(createLabel(type === 'HSV' ? 'Value' : 'Lightness', -0.8, 0.6, 0), createLabel('Hue', 0.8, -0.8, 0), createLabel('Saturation', 0.3, -0.8, 0.15));
+            }
+            labels.forEach(l => group.add(l));
+            scene.add(group);
             return group;
         }
 
-        // --- CORE SETUP ---
+        // --- RENDERER & SCENE SETUP ---
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
         let enableTurbulence = true;
+        let currentSpread = 20.0, currentSize = 1.0;
+        let currentSatMultiplier = 1.0, currentHueMin = 0.0, currentHueMax = 360.0;
+        const size = 30, totalPoints = size * size * size;
+
+        // Data arrays
+        const originalRgb = new Float32Array(totalPoints * 3);
+        const colors = new Float32Array(totalPoints * 3);
+        const spaces = ['RGB', 'HSV', 'HSL', 'CMYK'];
         
-        let targetSpread = 20.0;
-        let targetSize = 1.0; 
-        
-        let currentSpread = 20.0;
-        let currentSize = 1.0; 
-        let currentRadius = currentSpread / 6.0; 
-        
-        let currentSatMultiplier = 1.0;
-        let currentHueMin = 0.0;
-        let currentHueMax = 360.0;
-        
-        const size = 30; 
-        const totalPoints = size * size * size;
+        // Setup structures based on device
+        let views = [];
+        let mobileScene, mobileCamera, mobileControls, pointCloud, mobilePositions, activeNormalsArray;
+        let axisGroups = {};
+        let activeSpaceIndex = 0, activeSpace = 'RGB';
+        let normalsMap = {};
 
-        function createMaterial() {
-            const mat = new THREE.PointsMaterial({
-                size: currentSize,
-                vertexColors: true
-            });
-            mat.onBeforeCompile = (shader) => {
-                shader.fragmentShader = shader.fragmentShader.replace(
-                    `vec4 diffuseColor = vec4( diffuse, opacity );`,
-                    `
-                    vec2 cxy = 2.0 * gl_PointCoord - 1.0;
-                    if (dot(cxy, cxy) > 1.0) discard;
-                    vec4 diffuseColor = vec4(diffuse, opacity);
-                    `
-                );
-            };
-            return mat;
-        }
+        function computeCoordinatesForType(type, sat, hMin, hMax) {
+            const normals = new Float32Array(totalPoints * 3);
+            let idx = 0;
+            const hMinRad = hMin / 360.0, hMaxRad = hMax / 360.0;
 
-        // --- VIEWPORT FACTORY ---
-        function createSpace(type) {
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-            camera.position.set(30, 30, 45);
-
-            const controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.enablePan = false;
-            controls.target.set(0, 0, 0);
-            controls.enabled = false; 
-
-            const positions = new Float32Array(totalPoints * 3);
-            const baseNormals = new Float32Array(totalPoints * 3);
-            const colors = new Float32Array(totalPoints * 3);
-            
-            const originalRgb = new Float32Array(totalPoints * 3);
-
-            function computeCoordinates(satMultiplier, hueMin, hueMax) {
-                let idx = 0;
-                const hMinRad = (hueMin / 360.0);
-                const hMaxRad = (hueMax / 360.0);
-
-                for (let x = 0; x < size; x++) {
-                    for (let y = 0; y < size; y++) {
-                        for (let z = 0; z < size; z++) {
-                            const r = x / (size - 1);
-                            const g = y / (size - 1);
-                            const b = z / (size - 1);
-
-                            originalRgb[idx] = r;
-                            originalRgb[idx + 1] = g;
-                            originalRgb[idx + 2] = b;
-
-                            const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                            const effR = lum + (r - lum) * satMultiplier;
-                            const effG = lum + (g - lum) * satMultiplier;
-                            const effB = lum + (b - lum) * satMultiplier;
-
-                            // Standardize H for filtering
-                            let h, s, l;
-                            if (type === 'RGB' || type === 'HSV' || type === 'CMYK') {
-                                const hsv = rgbToHsv(effR, effG, effB);
-                                h = hsv[0]; s = hsv[1];
-                            } else {
-                                const hsl = rgbToHsl(effR, effG, effB);
-                                h = hsl[0]; s = hsl[1]; l = hsl[2];
-                            }
-
-                            let inSlice = true;
-                            if (hueMin <= hueMax) {
-                                if (h < hMinRad || h > hMaxRad) inSlice = false;
-                            } else {
-                                if (h < hMinRad && h > hMaxRad) inSlice = false;
-                            }
-
-                            let nx, ny, nz;
-                            if (type === 'RGB') {
-                                nx = effR - 0.5; ny = effG - 0.5; nz = effB - 0.5;
-                            } else if (type === 'HSV') {
-                                const vMax = Math.max(effR, effG, effB);
-                                const angle = h * Math.PI * 2;
-                                const radius = s * vMax * 0.6; 
-                                nx = radius * Math.cos(angle); ny = vMax - 0.5; nz = radius * Math.sin(angle); 
-                            } else if (type === 'HSL') {
-                                const angle = h * Math.PI * 2;
-                                const radius = s * (1.0 - Math.abs(2.0 * l - 1.0)) * 0.6;
-                                nx = radius * Math.cos(angle); ny = l - 0.5; nz = radius * Math.sin(angle); 
-                            } else if (type === 'CMYK') {
-                                // The CMY spatial box is the exact inverse of RGB space.
-                                nx = (1.0 - effR) - 0.5;
-                                ny = (1.0 - effG) - 0.5;
-                                nz = (1.0 - effB) - 0.5;
-                            }
-
-                            if (!inSlice) {
-                                if (type === 'RGB') {
-                                    nx = lum - 0.5; ny = lum - 0.5; nz = lum - 0.5;
-                                } else if (type === 'CMYK') {
-                                    nx = (1.0 - lum) - 0.5; ny = (1.0 - lum) - 0.5; nz = (1.0 - lum) - 0.5;
-                                } else {
-                                    nx = 0; ny = -0.5; nz = 0; 
-                                }
-                            }
-
-                            baseNormals[idx] = nx; 
-                            baseNormals[idx + 1] = ny; 
-                            baseNormals[idx + 2] = nz;
-                            
-                            colors[idx] = effR; 
-                            colors[idx + 1] = effG; 
-                            colors[idx + 2] = effB;
-
-                            idx += 3;
+            for (let x = 0; x < size; x++) {
+                for (let y = 0; y < size; y++) {
+                    for (let z = 0; z < size; z++) {
+                        const r = x / (size - 1), g = y / (size - 1), b = z / (size - 1);
+                        if (sat === 1.0 && type === 'RGB') {
+                            originalRgb[idx] = r; originalRgb[idx+1] = g; originalRgb[idx+2] = b;
                         }
+                        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        const effR = lum + (r - lum) * sat, effG = lum + (g - lum) * sat, effB = lum + (b - lum) * sat;
+                        
+                        const hsl = rgbToHsl(effR, effG, effB);
+                        const h = hsl[0];
+                        let inSlice = true;
+                        if (hMin <= hMax) { if (h < hMinRad || h > hMaxRad) inSlice = false; }
+                        else { if (h < hMinRad && h > hMaxRad) inSlice = false; }
+
+                        let nx, ny, nz;
+                        if (type === 'RGB') {
+                            nx = inSlice ? effR - 0.5 : lum - 0.5;
+                            ny = inSlice ? effG - 0.5 : lum - 0.5;
+                            nz = inSlice ? effB - 0.5 : lum - 0.5;
+                        } else if (type === 'HSV') {
+                            const hsv = rgbToHsv(effR, effG, effB);
+                            const vMax = Math.max(effR, effG, effB);
+                            const angle = hsv[0] * Math.PI * 2, radius = hsv[1] * vMax * 0.6;
+                            nx = inSlice ? radius * Math.cos(angle) : 0;
+                            ny = inSlice ? vMax - 0.5 : -0.5;
+                            nz = inSlice ? radius * Math.sin(angle) : 0;
+                        } else if (type === 'HSL') {
+                            const angle = hsl[0] * Math.PI * 2, radius = hsl[1] * (1.0 - Math.abs(2.0 * hsl[2] - 1.0)) * 0.6;
+                            nx = inSlice ? radius * Math.cos(angle) : 0;
+                            ny = inSlice ? hsl[2] - 0.5 : -0.5;
+                            nz = inSlice ? radius * Math.sin(angle) : 0;
+                        } else if (type === 'CMYK') {
+                            nx = inSlice ? (1.0 - effR) - 0.5 : (1.0 - lum) - 0.5;
+                            ny = inSlice ? (1.0 - effG) - 0.5 : (1.0 - lum) - 0.5;
+                            nz = inSlice ? (1.0 - effB) - 0.5 : (1.0 - lum) - 0.5;
+                        }
+
+                        normals[idx] = nx; normals[idx+1] = ny; normals[idx+2] = nz;
+                        if (type === 'RGB') { colors[idx] = effR; colors[idx+1] = effG; colors[idx+2] = effB; }
+                        idx += 3;
                     }
                 }
             }
+            return normals;
+        }
 
-            computeCoordinates(1.0, 0.0, 360.0);
+        if (isMobile) {
+            // --- MOBILE SETUP (Single Viewport + Morphing) ---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(25, 20, 35);
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.enablePan = false;
+
+            spaces.forEach(s => normalsMap[s] = computeCoordinatesForType(s, currentSatMultiplier, currentHueMin, currentHueMax));
+            activeNormalsArray = normalsMap[activeSpace];
+
+            mobilePositions = new Float32Array(totalPoints * 3);
+            for(let i=0; i<totalPoints*3; i++) mobilePositions[i] = activeNormalsArray[i] * 20.0;
 
             const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('position', new THREE.BufferAttribute(mobilePositions, 3));
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.computeBoundingSphere(); geometry.boundingSphere.radius = 10000;
 
-            geometry.computeBoundingSphere();
-            geometry.boundingSphere.radius = 10000;
+            const material = new THREE.PointsMaterial({ size: 1.0, vertexColors: true });
+            material.onBeforeCompile = (shader) => {
+                shader.fragmentShader = shader.fragmentShader.replace(`vec4 diffuseColor = vec4( diffuse, opacity );`, `vec2 cxy = 2.0 * gl_PointCoord - 1.0; if (dot(cxy, cxy) > 1.0) discard; vec4 diffuseColor = vec4(diffuse, opacity);`);
+            };
+            pointCloud = new THREE.Points(geometry, material);
+            pointCloud.frustumCulled = false; scene.add(pointCloud);
 
-            const material = createMaterial();
-            const points = new THREE.Points(geometry, material);
-            points.frustumCulled = false; 
-            scene.add(points);
+            const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: sharedGlowTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false }));
+            glowSprite.visible = false; scene.add(glowSprite);
 
-            const glowMaterial = new THREE.SpriteMaterial({ 
-                map: sharedGlowTexture, 
-                color: 0xffffff,
-                transparent: true, 
-                blending: THREE.AdditiveBlending,
-                depthTest: false 
-            });
-            const glowSprite = new THREE.Sprite(glowMaterial);
-            glowSprite.visible = false;
-            scene.add(glowSprite);
+            spaces.forEach(s => axisGroups[s] = createAxisLines(s));
+            spaces.forEach(s => axisGroups[s].visible = (s === activeSpace));
 
-            const axes = createAxisLines(type);
-            scene.add(axes);
-
-            const labels = [];
-            if (type === 'RGB') {
-                labels.push(createLabel('R', 0.7, -0.6, -0.6));
-                labels.push(createLabel('G', -0.6, 0.7, -0.6));
-                labels.push(createLabel('B', -0.6, -0.6, 0.7));
-                labels.push(createLabel('0 (Black)', -0.58, -0.58, -0.58)); 
-                labels.push(createLabel('1 (White)', 0.62, 0.62, 0.62));   
-                labels.push(createLabel('Achromatic Axis', -0.75, -0.65, -0.65)); 
-            } else if (type === 'HSV') {
-                labels.push(createLabel('Value', -0.8, 0.6, 0)); 
-                labels.push(createLabel('Hue', 0.8, -0.8, 0)); 
-                labels.push(createLabel('Saturation', 0.3, -0.8, 0.15)); 
-            } else if (type === 'HSL') {
-                labels.push(createLabel('Lightness', -0.8, 0.6, 0)); 
-                labels.push(createLabel('Hue', 0.8, -0.8, 0)); 
-                labels.push(createLabel('Saturation', 0.3, -0.8, 0.15)); 
-            } else if (type === 'CMYK') {
-                labels.push(createLabel('C', 0.7, -0.6, -0.6));
-                labels.push(createLabel('M', -0.6, 0.7, -0.6));
-                labels.push(createLabel('Y', -0.6, -0.6, 0.7));
-                labels.push(createLabel('0 (White)', -0.58, -0.58, -0.58)); 
-                labels.push(createLabel('100 (Black / K)', 0.62, 0.62, 0.62)); 
-                labels.push(createLabel('Grayscale Axis', -0.75, -0.65, -0.65)); 
-            }
+            // Mobile Inputs & Touch
+            let mouseX = -1000, mouseY = -1000, isTouching = false;
+            window.addEventListener('pointermove', e => { mouseX = (e.clientX/window.innerWidth)*2-1; mouseY = -(e.clientY/window.innerHeight)*2+1; isTouching = true; document.getElementById('inspector-card').classList.add('active'); });
             
-            labels.forEach(l => {
-                l.frustumCulled = false;
-                scene.add(l);
-            });
-
-            const containerDom = document.createElement('div');
-            containerDom.className = 'viewport-container';
-
-            const labelDom = document.createElement('div');
-            labelDom.className = 'viewport-label';
-            labelDom.innerText = type;
-            containerDom.appendChild(labelDom);
-            
-            document.body.appendChild(containerDom);
-
-            const inspectorPanel = document.createElement('div');
-            inspectorPanel.className = 'viewport-inspector-panel';
-
-            const readoutDom = document.createElement('div');
-            readoutDom.className = 'viewport-readout-text';
-            inspectorPanel.appendChild(readoutDom);
-
-            const swatchDom = document.createElement('div');
-            swatchDom.className = 'viewport-swatch';
-            inspectorPanel.appendChild(swatchDom);
-
-            document.body.appendChild(inspectorPanel);
-
-            return { type, scene, camera, controls, points, glowSprite, baseNormals, axes, labels, originalRgb, computeCoordinates, active: true, containerDom, inspectorPanel, readoutDom, swatchDom };
-        }
-
-        const views = [
-            createSpace('RGB'),
-            createSpace('HSV'),
-            createSpace('HSL'),
-            createSpace('CMYK')
-        ];
-
-        // --- UI BINDINGS ---
-        document.getElementById('check-rgb').addEventListener('change', (e) => { views[0].active = e.target.checked; });
-        document.getElementById('check-hsv').addEventListener('change', (e) => { views[1].active = e.target.checked; });
-        document.getElementById('check-hsl').addEventListener('change', (e) => { views[2].active = e.target.checked; });
-        document.getElementById('check-cmyk').addEventListener('change', (e) => { views[3].active = e.target.checked; });
-
-        document.getElementById('check-turbulence').addEventListener('change', (e) => {
-            enableTurbulence = e.target.checked;
-            
-            if (enableTurbulence) {
-                document.body.classList.remove('inspector-mode');
-            } else {
-                document.body.classList.add('inspector-mode');
-            }
-            
-            targetSpread = enableTurbulence ? 20.0 : 50.0;
-            targetSize = enableTurbulence ? 1.0 : 0.7;
-            
-            views.forEach(v => {
-                v.controls.enablePan = !enableTurbulence;
-                
-                if (enableTurbulence) {
-                    v.inspectorPanel.style.display = 'none';
-                    v.glowSprite.visible = false;
-                    v.controls.target.set(0, 0, 0);
+            let touchStartY = 0, touchStartX = 0, touchStartTime = 0;
+            window.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; touchStartX = e.touches[0].clientX; touchStartTime = Date.now(); }, {passive: true});
+            window.addEventListener('touchend', e => {
+                const deltaY = e.changedTouches[0].clientY - touchStartY, deltaX = e.changedTouches[0].clientX - touchStartX;
+                if (Date.now() - touchStartTime < 500 && Math.abs(deltaY) > 50 && Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
+                    activeSpaceIndex = deltaY > 0 ? (activeSpaceIndex - 1 + spaces.length) % spaces.length : (activeSpaceIndex + 1) % spaces.length;
+                    activeSpace = spaces[activeSpaceIndex];
+                    activeNormalsArray = normalsMap[activeSpace];
+                    document.getElementById('active-space-name').innerText = activeSpace;
+                    spaces.forEach(s => axisGroups[s].visible = (s === activeSpace));
                 }
-            });
-        });
+                isTouching = false;
+            }, {passive: true});
 
-        const satSlider = document.getElementById('satSlider');
-        const satValueLabel = document.getElementById('satValue');
-        satSlider.addEventListener('input', (e) => {
-            currentSatMultiplier = parseFloat(e.target.value);
-            satValueLabel.innerText = currentSatMultiplier.toFixed(2);
-            updateSpaces();
-        });
+            const raycaster = new THREE.Raycaster();
+            const tempVec = new THREE.Vector3();
 
-        const hueMinSlider = document.getElementById('hueMinSlider');
-        const hueMinValueLabel = document.getElementById('hueMinValue');
-        hueMinSlider.addEventListener('input', (e) => {
-            currentHueMin = parseFloat(e.target.value);
-            hueMinValueLabel.innerText = currentHueMin;
-            updateSpaces();
-        });
+            function animateMobile() {
+                requestAnimationFrame(animateMobile);
+                controls.update();
 
-        const hueMaxSlider = document.getElementById('hueMaxSlider');
-        const hueMaxValueLabel = document.getElementById('hueMaxValue');
-        hueMaxSlider.addEventListener('input', (e) => {
-            currentHueMax = parseFloat(e.target.value);
-            hueMaxValueLabel.innerText = currentHueMax;
-            updateSpaces();
-        });
+                const targetSpread = enableTurbulence ? 20.0 : 50.0;
+                currentSpread += (targetSpread - currentSpread) * 0.1;
+                pointCloud.material.size = enableTurbulence ? 1.0 : 0.8;
 
-        function updateSpaces() {
-            views.forEach(v => {
-                v.computeCoordinates(currentSatMultiplier, currentHueMin, currentHueMax);
-                v.points.geometry.attributes.color.needsUpdate = true;
-            });
-        }
-
-        // --- INTERACTION ---
-        const raycaster = new THREE.Raycaster();
-        let mouseX = -1000, mouseY = -1000;
-        let isMouseMoving = false;
-
-        window.addEventListener('pointermove', (event) => {
-            mouseX = event.clientX;
-            mouseY = event.clientY;
-            isMouseMoving = true;
-
-            const activeViews = views.filter(v => v.active);
-            if (activeViews.length > 0) {
-                const viewWidth = window.innerWidth / activeViews.length;
-                const hoverIndex = Math.floor(mouseX / viewWidth);
-                
-                activeViews.forEach((view, index) => {
-                    view.controls.enabled = (index === hoverIndex);
-                });
-            }
-        });
-
-        window.addEventListener('pointerleave', () => {
-            mouseX = -1000;
-            mouseY = -1000;
-        });
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        const tempVec = new THREE.Vector3();
-
-        // --- ANIMATION LOOP ---
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            currentSpread += (targetSpread - currentSpread) * 0.1;
-            currentSize += (targetSize - currentSize) * 0.1;
-            currentRadius = currentSpread / 6.0;
-
-            const activeViews = views.filter(v => v.active);
-            
-            views.forEach(v => {
-                v.containerDom.style.display = 'none';
-                v.inspectorPanel.style.display = 'none';
-                v.points.material.size = currentSize;
-            });
-
-            if (activeViews.length === 0) {
-                renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
-                renderer.setScissorTest(false);
-                renderer.clear();
-                return;
-            }
-            
-            const viewWidth = window.innerWidth / activeViews.length;
-            const viewHeight = window.innerHeight;
-
-            // --- SYNCHRONIZED PRE-PASS ---
-            let globalHoveredIdx = -1;
-            let globalR = 0, globalG = 0, globalB = 0;
-            let globalEffR = 0, globalEffG = 0, globalEffB = 0;
-
-            if (!enableTurbulence && mouseX >= 0 && mouseX <= window.innerWidth && mouseY >= 0 && mouseY <= window.innerHeight) {
-                const hoverIndex = Math.floor(mouseX / viewWidth);
-                const activeView = activeViews[hoverIndex];
-                
-                if (activeView) {
-                    const localMouseX = ((mouseX - (hoverIndex * viewWidth)) / viewWidth) * 2 - 1;
-                    const localMouseY = -(mouseY / viewHeight) * 2 + 1;
-                    
-                    raycaster.setFromCamera(new THREE.Vector2(localMouseX, localMouseY), activeView.camera);
-                    raycaster.params.Points.threshold = currentSpread * 0.015;
-                    const intersects = raycaster.intersectObject(activeView.points);
-                    
-                    for (let i = 0; i < intersects.length; i++) {
-                        const idx = intersects[i].index;
-                        
-                        const r = activeView.originalRgb[idx * 3];
-                        const g = activeView.originalRgb[idx * 3 + 1];
-                        const b = activeView.originalRgb[idx * 3 + 2];
-                        
-                        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                        const effR = lum + (r - lum) * currentSatMultiplier;
-                        const effG = lum + (g - lum) * currentSatMultiplier;
-                        const effB = lum + (b - lum) * currentSatMultiplier;
-                        
-                        let h;
-                        if (activeView.type === 'RGB' || activeView.type === 'HSV' || activeView.type === 'CMYK') {
-                            h = rgbToHsv(effR, effG, effB)[0];
-                        } else {
-                            h = rgbToHsl(effR, effG, effB)[0];
-                        }
-                        
-                        const hMinRad = currentHueMin / 360.0;
-                        const hMaxRad = currentHueMax / 360.0;
-                        let inSlice = true;
-                        if (currentHueMin <= currentHueMax) {
-                            if (h < hMinRad || h > hMaxRad) inSlice = false;
-                        } else {
-                            if (h < hMinRad && h > hMaxRad) inSlice = false;
-                        }
-                        
-                        if (inSlice) {
-                            globalHoveredIdx = idx;
-                            globalR = r; globalG = g; globalB = b;
-                            globalEffR = effR; globalEffG = effG; globalEffB = effB;
-                            break; 
-                        }
+                const activeGroup = axisGroups[activeSpace];
+                activeGroup.scale.set(currentSpread, currentSpread, currentSpread);
+                activeGroup.children.forEach(child => {
+                    if(child.isSprite) {
+                        child.position.set(child.userData.nx * currentSpread, child.userData.ny * currentSpread, child.userData.nz * currentSpread);
+                        child.scale.set(currentSpread * 0.4, currentSpread * 0.2, 1);
                     }
-                }
-            }
-
-            activeViews.forEach((view, index) => {
-                const left = index * viewWidth;
-                const right = left + viewWidth;
-
-                renderer.setViewport(left, 0, viewWidth, viewHeight);
-                renderer.setScissor(left, 0, viewWidth, viewHeight);
-                renderer.setScissorTest(true);
-
-                view.camera.aspect = viewWidth / viewHeight;
-                view.camera.updateProjectionMatrix();
-                view.controls.update();
-
-                view.containerDom.style.display = 'flex';
-                view.containerDom.style.left = `${left + (viewWidth / 2)}px`;
-                view.inspectorPanel.style.left = `${right - 20}px`;
-
-                view.axes.scale.set(currentSpread, currentSpread, currentSpread);
-
-                view.labels.forEach(label => {
-                    label.position.set(
-                        label.userData.nx * currentSpread,
-                        label.userData.ny * currentSpread,
-                        label.userData.nz * currentSpread
-                    );
-                    label.scale.set(currentSpread * 0.4, currentSpread * 0.2, 1);
                 });
 
-                const posAttribute = view.points.geometry.attributes.position;
-                const posArray = posAttribute.array;
+                let globalHoveredIdx = -1;
+                if (!enableTurbulence && isTouching) {
+                    raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+                    raycaster.params.Points.threshold = currentSpread * 0.02;
+                    const intersects = raycaster.intersectObject(pointCloud);
+                    if (intersects.length > 0) {
+                        globalHoveredIdx = intersects[0].index;
+                        const r = originalRgb[globalHoveredIdx*3], g = originalRgb[globalHoveredIdx*3+1], b = originalRgb[globalHoveredIdx*3+2];
+                        const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+                        const effR = lum + (r - lum)*currentSatMultiplier, effG = lum + (g - lum)*currentSatMultiplier, effB = lum + (b - lum)*currentSatMultiplier;
 
-                if (!enableTurbulence && globalHoveredIdx !== -1) {
-                    let text = '';
-                    if (view.type === 'RGB') {
-                        text = `R: ${globalR.toFixed(2)}  G: ${globalG.toFixed(2)}  B: ${globalB.toFixed(2)}`;
-                    } else if (view.type === 'HSV') {
-                        const [h_orig, s_orig, v_orig] = rgbToHsv(globalR, globalG, globalB);
-                        text = `H: ${Math.round(h_orig*360)}°  S: ${s_orig.toFixed(2)}  V: ${v_orig.toFixed(2)}`;
-                    } else if (view.type === 'HSL') {
-                        const [h_orig, s_orig, l_orig] = rgbToHsl(globalR, globalG, globalB);
-                        text = `H: ${Math.round(h_orig*360)}°  S: ${s_orig.toFixed(2)}  L: ${l_orig.toFixed(2)}`;
-                    } else if (view.type === 'CMYK') {
-                        const [c, m, y, k] = rgbToCmyk(globalR, globalG, globalB);
-                        text = `C: ${Math.round(c*100)}% M: ${Math.round(m*100)}% Y: ${Math.round(y*100)}% K: ${Math.round(k*100)}%`;
-                    }
-
-                    const sR = Math.min(255, Math.max(0, Math.round(globalEffR * 255))).toString(16).padStart(2, '0');
-                    const sG = Math.min(255, Math.max(0, Math.round(globalEffG * 255))).toString(16).padStart(2, '0');
-                    const sB = Math.min(255, Math.max(0, Math.round(globalEffB * 255))).toString(16).padStart(2, '0');
-                    
-                    view.swatchDom.style.backgroundColor = `#${sR}${sG}${sB}`;
-                    view.readoutDom.innerText = text;
-                    view.inspectorPanel.style.display = 'flex';
-                }
-
-                if (enableTurbulence && isMouseMoving && mouseX >= left && mouseX <= right) {
-                    const localMouseX = ((mouseX - left) / viewWidth) * 2 - 1;
-                    const localMouseY = -(mouseY / viewHeight) * 2 + 1;
-                    raycaster.setFromCamera(new THREE.Vector2(localMouseX, localMouseY), view.camera);
-                    const localRay = raycaster.ray.clone().applyMatrix4(view.points.matrixWorld.clone().invert());
-                    
-                    for (let j = 0; j < totalPoints; j++) {
-                        const idx = j * 3;
-                        tempVec.set(posArray[idx], posArray[idx + 1], posArray[idx + 2]);
+                        const sR = Math.round(effR*255).toString(16).padStart(2,'0'), sG = Math.round(effG*255).toString(16).padStart(2,'0'), sB = Math.round(effB*255).toString(16).padStart(2,'0');
+                        document.getElementById('ui-swatch').style.backgroundColor = `#${sR}${sG}${sB}`;
+                        document.getElementById('val-rgb').innerHTML = `${Math.round(effR*255)} ${Math.round(effG*255)} ${Math.round(effB*255)}`;
+                        const hsv = rgbToHsv(effR, effG, effB); document.getElementById('val-hsv').innerHTML = `${Math.round(hsv[0]*360)}° ${Math.round(hsv[1]*100)}% ${Math.round(hsv[2]*100)}%`;
+                        const hsl = rgbToHsl(effR, effG, effB); document.getElementById('val-hsl').innerHTML = `${Math.round(hsl[0]*360)}° ${Math.round(hsl[1]*100)}% ${Math.round(hsl[2]*100)}%`;
+                        const cmyk = rgbToCmyk(effR, effG, effB); document.getElementById('val-cmyk').innerHTML = `${Math.round(cmyk[0]*100)}% ${Math.round(cmyk[1]*100)}% ${Math.round(cmyk[2]*100)}% ${Math.round(cmyk[3]*100)}%`;
                         
-                        const distToRay = localRay.distanceToPoint(tempVec);
-                        if (distToRay < currentRadius) {
-                            const force = (currentRadius - distToRay) * 0.3; 
-                            posArray[idx] += (Math.random() - 0.5) * force;
-                            posArray[idx + 1] += (Math.random() - 0.5) * force;
-                            posArray[idx + 2] += (Math.random() - 0.5) * force;
-                        }
+                        document.querySelectorAll('.val-data').forEach(el => el.classList.remove('highlight'));
+                        document.getElementById(`val-${activeSpace.toLowerCase()}`).classList.add('highlight');
+
+                        const pIdx = globalHoveredIdx * 3;
+                        glowSprite.material.color.setRGB(effR, effG, effB);
+                        glowSprite.position.set(mobilePositions[pIdx], mobilePositions[pIdx+1], mobilePositions[pIdx+2]);
+                        glowSprite.scale.set(currentSpread*0.5, currentSpread*0.5, 1);
+                        glowSprite.visible = true;
                     }
+                } else { glowSprite.visible = false; }
+
+                let localRay = null;
+                if (enableTurbulence && isTouching) {
+                    raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+                    localRay = raycaster.ray.clone().applyMatrix4(pointCloud.matrixWorld.clone().invert());
                 }
 
-                const returnSpeed = 0.08;
                 let hx = 0, hy = 0, hz = 0;
-                
                 if (globalHoveredIdx !== -1) {
-                    hx = view.baseNormals[globalHoveredIdx * 3] * currentSpread;
-                    hy = view.baseNormals[globalHoveredIdx * 3 + 1] * currentSpread;
-                    hz = view.baseNormals[globalHoveredIdx * 3 + 2] * currentSpread;
+                    hx = activeNormalsArray[globalHoveredIdx*3]*currentSpread; hy = activeNormalsArray[globalHoveredIdx*3+1]*currentSpread; hz = activeNormalsArray[globalHoveredIdx*3+2]*currentSpread;
                 }
-
-                const repelRadius = 15.0; 
-                const repelMaxForce = 10.0;
 
                 for (let j = 0; j < totalPoints; j++) {
                     const idx = j * 3;
-                    let targetX = view.baseNormals[idx] * currentSpread;
-                    let targetY = view.baseNormals[idx + 1] * currentSpread;
-                    let targetZ = view.baseNormals[idx + 2] * currentSpread;
+                    let tx = activeNormalsArray[idx]*currentSpread, ty = activeNormalsArray[idx+1]*currentSpread, tz = activeNormalsArray[idx+2]*currentSpread;
 
-                    if (!enableTurbulence && globalHoveredIdx !== -1 && j !== globalHoveredIdx) {
-                        const dx = targetX - hx;
-                        const dy = targetY - hy;
-                        const dz = targetZ - hz;
-                        const distSq = dx*dx + dy*dy + dz*dz;
-                        
-                        if (distSq > 0.0001 && distSq < repelRadius * repelRadius) {
-                            const dist = Math.sqrt(distSq);
-                            const force = repelMaxForce * Math.pow(1.0 - (dist / repelRadius), 2.0); 
-                            targetX += (dx / dist) * force;
-                            targetY += (dy / dist) * force;
-                            targetZ += (dz / dist) * force;
+                    if (localRay) {
+                        tempVec.set(mobilePositions[idx], mobilePositions[idx+1], mobilePositions[idx+2]);
+                        const d = localRay.distanceToPoint(tempVec);
+                        if (d < currentSpread/6.0) {
+                            const f = (currentSpread/6.0 - d)*0.3;
+                            mobilePositions[idx] += (Math.random()-0.5)*f; mobilePositions[idx+1] += (Math.random()-0.5)*f; mobilePositions[idx+2] += (Math.random()-0.5)*f;
                         }
                     }
 
-                    posArray[idx] += (targetX - posArray[idx]) * returnSpeed;
-                    posArray[idx + 1] += (targetY - posArray[idx + 1]) * returnSpeed;
-                    posArray[idx + 2] += (targetZ - posArray[idx + 2]) * returnSpeed;
+                    if (!enableTurbulence && globalHoveredIdx !== -1 && j !== globalHoveredIdx) {
+                        const dx = tx - hx, dy = ty - hy, dz = tz - hz, distSq = dx*dx + dy*dy + dz*dz;
+                        if (distSq > 0.0001 && distSq < 225.0) {
+                            const dist = Math.sqrt(distSq), f = 10.0 * Math.pow(1.0 - (dist / 15.0), 2.0);
+                            tx += (dx / dist)*f; ty += (dy / dist)*f; tz += (dz / dist)*f;
+                        }
+                    }
+
+                    mobilePositions[idx] += (tx - mobilePositions[idx]) * 0.08;
+                    mobilePositions[idx+1] += (ty - mobilePositions[idx+1]) * 0.08;
+                    mobilePositions[idx+2] += (tz - mobilePositions[idx+2]) * 0.08;
                 }
+                pointCloud.geometry.attributes.position.needsUpdate = true;
+                renderer.render(scene, camera);
+            }
+            animateMobile();
 
-                posAttribute.needsUpdate = true;
+        } else {
+            // --- DESKTOP SETUP (Multi-Viewport Side-by-Side) ---
+            function createSpaceViewport(type) {
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+                camera.position.set(30, 30, 45);
+                const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true; controls.dampingFactor = 0.05; controls.enablePan = false; controls.enabled = false;
 
-                if (!enableTurbulence && globalHoveredIdx !== -1) {
-                    const pIdx = globalHoveredIdx * 3;
-                    view.glowSprite.material.color.setRGB(globalEffR, globalEffG, globalEffB);
-                    view.glowSprite.position.set(posArray[pIdx], posArray[pIdx + 1], posArray[pIdx + 2]);
-                    const glowScale = currentSize * 8.0; 
-                    view.glowSprite.scale.set(glowScale, glowScale, 1);
-                    view.glowSprite.visible = true;
-                } else {
-                    view.glowSprite.visible = false;
+                const normals = computeCoordinatesForType(type, currentSatMultiplier, currentHueMin, currentHueMax);
+                const positions = new Float32Array(totalPoints * 3);
+                for(let i=0; i<totalPoints*3; i++) positions[i] = normals[i] * 20.0;
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometry.computeBoundingSphere(); geometry.boundingSphere.radius = 10000;
+
+                const pointMat = new THREE.PointsMaterial({ size: 1.0, vertexColors: true });
+                pointMat.onBeforeCompile = (shader) => {
+                    shader.fragmentShader = shader.fragmentShader.replace(`vec4 diffuseColor = vec4( diffuse, opacity );`, `vec2 cxy = 2.0 * gl_PointCoord - 1.0; if (dot(cxy, cxy) > 1.0) discard; vec4 diffuseColor = vec4(diffuse, opacity);`);
+                };
+                const points = new THREE.Points(geometry, pointMat); points.frustumCulled = false; scene.add(points);
+
+                const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: sharedGlowTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false }));
+                glowSprite.visible = false; scene.add(glowSprite);
+
+                const axes = createAxisLines(type);
+
+                // DOM panels
+                const containerDom = document.createElement('div'); containerDom.className = 'viewport-container';
+                const labelDom = document.createElement('div'); labelDom.className = 'viewport-label'; labelDom.innerText = type; containerDom.appendChild(labelDom); document.body.appendChild(containerDom);
+
+                const inspectorPanel = document.createElement('div'); inspectorPanel.className = 'viewport-inspector-panel';
+                const readoutDom = document.createElement('div'); readoutDom.className = 'viewport-readout-text'; inspectorPanel.appendChild(readoutDom);
+                const swatchDom = document.createElement('div'); swatchDom.className = 'viewport-swatch'; inspectorPanel.appendChild(swatchDom);
+                document.body.appendChild(inspectorPanel);
+
+                return { type, scene, camera, controls, points, glowSprite, normals, axes, containerDom, inspectorPanel, readoutDom, swatchDom, active: true };
+            }
+
+            views = [createSpaceViewport('RGB'), createSpaceViewport('HSV'), createSpaceViewport('HSL'), createSpaceViewport('CMYK')];
+
+            document.getElementById('check-rgb').addEventListener('change', e => { views[0].active = e.target.checked; });
+            document.getElementById('check-hsv').addEventListener('change', e => { views[1].active = e.target.checked; });
+            document.getElementById('check-hsl').addEventListener('change', e => { views[2].active = e.target.checked; });
+            document.getElementById('check-cmyk').addEventListener('change', e => { views[3].active = e.target.checked; });
+
+            const raycaster = new THREE.Raycaster();
+            let mouseX = -1000, mouseY = -1000, isMouseMoving = false;
+            window.addEventListener('pointermove', e => {
+                mouseX = e.clientX; mouseY = e.clientY; isMouseMoving = true;
+                const activeViews = views.filter(v => v.active);
+                if (activeViews.length > 0) {
+                    const vw = window.innerWidth / activeViews.length;
+                    const hIdx = Math.floor(mouseX / vw);
+                    activeViews.forEach((v, idx) => v.controls.enabled = (idx === hIdx));
                 }
-
-                renderer.render(view.scene, view.camera);
             });
-            
-            isMouseMoving = false; 
+            window.addEventListener('pointerleave', () => { mouseX = -1000; mouseY = -1000; });
+
+            const tempVec = new THREE.Vector3();
+
+            function animateDesktop() {
+                requestAnimationFrame(animateDesktop);
+                const targetSpread = enableTurbulence ? 20.0 : 50.0;
+                currentSpread += (targetSpread - currentSpread) * 0.1;
+                currentSize += ((enableTurbulence ? 1.0 : 0.7) - currentSize) * 0.1;
+
+                const activeViews = views.filter(v => v.active);
+                views.forEach(v => { v.containerDom.style.display = 'none'; v.inspectorPanel.style.display = 'none'; v.points.material.size = currentSize; });
+
+                if (activeViews.length === 0) { renderer.setViewport(0,0,window.innerWidth,window.innerHeight); renderer.setScissorTest(false); renderer.clear(); return; }
+
+                const vw = window.innerWidth / activeViews.length, vh = window.innerHeight;
+                let globalHoverIdx = -1, gR = 0, gG = 0, gB = 0, gEffR = 0, gEffG = 0, gEffB = 0;
+
+                if (!enableTurbulence && mouseX >= 0 && mouseX <= window.innerWidth && mouseY >= 0 && mouseY <= window.innerHeight) {
+                    const hIdx = Math.floor(mouseX / vw);
+                    const aView = activeViews[hIdx];
+                    if (aView) {
+                        const lX = ((mouseX - (hIdx * vw)) / vw) * 2 - 1, lY = -(mouseY / vh) * 2 + 1;
+                        raycaster.setFromCamera(new THREE.Vector2(lX, lY), aView.camera);
+                        raycaster.params.Points.threshold = currentSpread * 0.015;
+                        const intersects = raycaster.intersectObject(aView.points);
+                        if (intersects.length > 0) {
+                            globalHoverIdx = intersects[0].index;
+                            gR = originalRgb[globalHoverIdx*3]; gG = originalRgb[globalHoverIdx*3+1]; gB = originalRgb[globalHoverIdx*3+2];
+                            const lum = 0.2126*gR + 0.7152*gG + 0.0722*gB;
+                            gEffR = lum + (gR - lum)*currentSatMultiplier; gEffG = lum + (gG - lum)*currentSatMultiplier; gEffB = lum + (gB - lum)*currentSatMultiplier;
+                        }
+                    }
+                }
+
+                activeViews.forEach((v, idx) => {
+                    const left = idx * vw, right = left + vw;
+                    renderer.setViewport(left, 0, vw, vh); renderer.setScissor(left, 0, vw, vh); renderer.setScissorTest(true);
+                    v.camera.aspect = vw / vh; v.camera.updateProjectionMatrix(); v.controls.update();
+
+                    v.containerDom.style.display = 'flex'; v.containerDom.style.left = `${left + (vw / 2)}px`;
+                    v.inspectorPanel.style.left = `${right - 20}px`;
+                    v.axes.scale.set(currentSpread, currentSpread, currentSpread);
+
+                    const posArr = v.points.geometry.attributes.position.array;
+
+                    if (!enableTurbulence && globalHoverIdx !== -1) {
+                        let text = '';
+                        if (v.type === 'RGB') text = `R: ${gR.toFixed(2)} G: ${gG.toFixed(2)} B: ${gB.toFixed(2)}`;
+                        else if (v.type === 'HSV') { const hsv = rgbToHsv(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsv[0]*360)}° S: ${hsv[1].toFixed(2)} V: ${hsv[2].toFixed(2)}`; }
+                        else if (v.type === 'HSL') { const hsl = rgbToHsl(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsl[0]*360)}° S: ${hsl[1].toFixed(2)} L: ${hsl[2].toFixed(2)}`; }
+                        else if (v.type === 'CMYK') { const cmyk = rgbToCmyk(gEffR, gEffG, gEffB); text = `C:${Math.round(cmyk[0]*100)}% M:${Math.round(cmyk[1]*100)}% Y:${Math.round(cmyk[2]*100)}% K:${Math.round(cmyk[3]*100)}%`; }
+
+                        const sR = Math.round(gEffR*255).toString(16).padStart(2,'0'), sG = Math.round(gEffG*255).toString(16).padStart(2,'0'), sB = Math.round(gEffB*255).toString(16).padStart(2,'0');
+                        v.swatchDom.style.backgroundColor = `#${sR}${sG}${sB}`; v.readoutDom.innerText = text; v.inspectorPanel.style.display = 'flex';
+                    }
+
+                    let hx = 0, hy = 0, hz = 0;
+                    if (globalHoverIdx !== -1) {
+                        hx = v.normals[globalHoverIdx*3]*currentSpread; hy = v.normals[globalHoverIdx*3+1]*currentSpread; hz = v.normals[globalHoverIdx*3+2]*currentSpread;
+                    }
+
+                    for (let j = 0; j < totalPoints; j++) {
+                        const pIdx = j * 3;
+                        let tx = v.normals[pIdx]*currentSpread, ty = v.normals[pIdx+1]*currentSpread, tz = v.normals[pIdx+2]*currentSpread;
+
+                        if (!enableTurbulence && globalHoverIdx !== -1 && j !== globalHoverIdx) {
+                            const dx = tx - hx, dy = ty - hy, dz = tz - hz, distSq = dx*dx + dy*dy + dz*dz;
+                            if (distSq > 0.0001 && distSq < 225.0) {
+                                const dist = Math.sqrt(distSq), f = 10.0 * Math.pow(1.0 - (dist / 15.0), 2.0);
+                                tx += (dx / dist)*f; ty += (dy / dist)*f; tz += (dz / dist)*f;
+                            }
+                        }
+                        posArr[pIdx] += (tx - posArr[pIdx]) * 0.08;
+                        posArr[pIdx+1] += (ty - posArr[pIdx+1]) * 0.08;
+                        posArr[pIdx+2] += (tz - posArr[pIdx+2]) * 0.08;
+                    }
+                    v.points.geometry.attributes.position.needsUpdate = true;
+
+                    if (!enableTurbulence && globalHoverIdx !== -1) {
+                        const pIdx = globalHoverIdx * 3;
+                        v.glowSprite.material.color.setRGB(gEffR, gEffG, gEffB);
+                        v.glowSprite.position.set(posArr[pIdx], posArr[pIdx+1], posArr[pIdx+2]);
+                        v.glowSprite.scale.set(currentSize*8.0, currentSize*8.0, 1);
+                        v.glowSprite.visible = true;
+                    } else { v.glowSprite.visible = false; }
+
+                    renderer.render(v.scene, v.camera);
+                });
+                isMouseMoving = false;
+            }
+            animateDesktop();
         }
 
-        animate();
+        // Global Sliders Update Hook
+        function triggerGlobalUpdate() {
+            if (isMobile) {
+                spaces.forEach(s => normalsMap[s] = computeCoordinatesForType(s, currentSatMultiplier, currentHueMin, currentHueMax));
+                activeNormalsArray = normalsMap[activeSpace];
+                pointCloud.geometry.attributes.color.needsUpdate = true;
+            } else {
+                views.forEach(v => {
+                    v.normals = computeCoordinatesForType(v.type, currentSatMultiplier, currentHueMin, currentHueMax);
+                    v.points.geometry.attributes.color.needsUpdate = true;
+                });
+            }
+        }
+
+        document.getElementById('satSlider').addEventListener('input', e => { currentSatMultiplier = parseFloat(e.target.value); document.getElementById('satValue').innerText = currentSatMultiplier.toFixed(2); triggerGlobalUpdate(); });
+        document.getElementById('hueMinSlider').addEventListener('input', e => { currentHueMin = parseFloat(e.target.value); document.getElementById('hueMinValue').innerText = currentHueMin; triggerGlobalUpdate(); });
+        document.getElementById('hueMaxSlider').addEventListener('input', e => { currentHueMax = parseFloat(e.target.value); document.getElementById('hueMaxValue').innerText = currentHueMax; triggerGlobalUpdate(); });
+
+        window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); });
     </script>
 </body>
 </html>
