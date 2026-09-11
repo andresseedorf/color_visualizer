@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Three.js Color Spaces - Adaptive Desktop/Mobile Visualizer</title>
+    <title>Three.js Color Spaces - Adaptive Visualizer</title>
     <style>
         body {
             margin: 0;
@@ -28,8 +28,24 @@
         label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
         input[type="range"], input[type="checkbox"] { cursor: pointer; }
 
-        /* Desktop Cursor Styles */
-        body.desktop-mode canvas {
+        /* Desktop Navigation Info */
+        #info {
+            position: absolute;
+            bottom: 15px;
+            left: 20px;
+            color: #888;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+            display: none; 
+        }
+        
+        body.desktop-mode #info {
+            display: block; 
+        }
+
+        /* Inspector Mode Cursor */
+        body.inspector-mode canvas {
             cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2300ffff" stroke-width="2"><path d="M2 22l5.5-5.5"/><path d="M2.5 16.5l5 5"/><path d="M12 18.5l-4.5-4.5"/><path d="M17 12l-7.5-7.5"/><path d="M22 2l-5.5 5.5"/><path d="M17 12l4 4-2 2-4-4"/></svg>') 0 24, crosshair !important;
         }
 
@@ -58,7 +74,15 @@
         .viewport-label { color: rgba(255, 255, 255, 0.4); font-size: 28px; font-weight: bold; letter-spacing: 2px; }
         .viewport-inspector-panel { position: absolute; top: 20px; display: none; align-items: center; gap: 10px; pointer-events: none; z-index: 10; transform: translateX(-100%); }
         .viewport-readout-text { font-family: monospace; font-size: 13px; color: #0ff; background: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(0,255,255,0.4); }
-        .viewport-swatch { width: 32px; height: 32px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.8); }
+        .viewport-swatch { 
+            width: 32px; 
+            height: 32px; 
+            min-width: 32px; 
+            min-height: 32px; 
+            border-radius: 6px; 
+            border: 2px solid rgba(255,255,255,0.8); 
+            flex-shrink: 0; 
+        }
     </style>
 </head>
 <body>
@@ -89,6 +113,8 @@
         </div>
     </div>
 
+    <div id="info">Hover to focus viewport | Left Click: Rotate | Scroll: Zoom | Right Click (Turbulence OFF): Pan</div>
+
     <!-- Mobile Elements -->
     <div id="space-indicator">
         <div id="active-space-name">RGB</div>
@@ -109,10 +135,11 @@
     
     <script>
         const isMobile = window.innerWidth <= 768;
-        if (!isMobile) document.body.classList.add('desktop-mode');
-        else {
+        if (isMobile) {
             document.getElementById('space-indicator').style.display = 'block';
             document.getElementById('desktop-checkboxes').style.display = 'none';
+        } else {
+            document.body.classList.add('desktop-mode');
         }
 
         // --- MATH HELPERS ---
@@ -163,7 +190,7 @@
 
         function createLabel(text, nx, ny, nz) {
             const canvas = document.createElement('canvas');
-            canvas.width = 512; canvas.height = 256;
+            canvas.width = 768; canvas.height = 256; // Increased width to prevent text clipping
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.font = 'bold 64px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -173,7 +200,10 @@
             
             const texture = new THREE.CanvasTexture(canvas);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
-            sprite.userData = { nx, ny, nz };
+            
+            sprite.position.set(nx, ny, nz);
+            sprite.scale.set(0.35, 0.125, 1); // Widened aspect ratio for longer strings like Achromatic Axis
+            
             return sprite;
         }
 
@@ -203,6 +233,12 @@
                 addLine(blk, [off, -off, -off]); addLine(blk, [-off, off, -off]); addLine(blk, [-off, -off, off]);
                 addLine([-0.55, -0.55, -0.55], [0.55, 0.55, 0.55]);
                 labels.push(createLabel(type === 'RGB' ? 'R' : 'C', 0.7, -0.6, -0.6), createLabel(type === 'RGB' ? 'G' : 'M', -0.6, 0.7, -0.6), createLabel(type === 'RGB' ? 'B' : 'Y', -0.6, -0.6, 0.7));
+                
+                if (type === 'RGB') {
+                    labels.push(createLabel('0 (Black)', -0.58, -0.58, -0.58), createLabel('1 (White)', 0.62, 0.62, 0.62), createLabel('Achromatic Axis', -0.75, -0.65, -0.65));
+                } else if (type === 'CMYK') {
+                    labels.push(createLabel('0 (White)', -0.58, -0.58, -0.58), createLabel('100 (Black / K)', 0.62, 0.62, 0.62), createLabel('Grayscale Axis', -0.75, -0.65, -0.65));
+                }
             } else if (type === 'HSV' || type === 'HSL') {
                 addLine([-0.8, -0.5, 0], [-0.8, 0.5, 0]); 
                 const offY = -0.8; const maxSat = 0.6; addLine([0, offY, 0], [maxSat, offY, 0]);
@@ -215,11 +251,10 @@
                 labels.push(createLabel(type === 'HSV' ? 'Value' : 'Lightness', -0.8, 0.6, 0), createLabel('Hue', 0.8, -0.8, 0), createLabel('Saturation', 0.3, -0.8, 0.15));
             }
             labels.forEach(l => group.add(l));
-            scene.add(group);
             return group;
         }
 
-        // --- RENDERER & SCENE SETUP ---
+        // --- RENDERER & DATA SETUP ---
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -230,14 +265,12 @@
         let currentSatMultiplier = 1.0, currentHueMin = 0.0, currentHueMax = 360.0;
         const size = 30, totalPoints = size * size * size;
 
-        // Data arrays
         const originalRgb = new Float32Array(totalPoints * 3);
         const colors = new Float32Array(totalPoints * 3);
         const spaces = ['RGB', 'HSV', 'HSL', 'CMYK'];
         
-        // Setup structures based on device
         let views = [];
-        let mobileScene, mobileCamera, mobileControls, pointCloud, mobilePositions, activeNormalsArray;
+        let pointCloud, mobilePositions, activeNormalsArray;
         let axisGroups = {};
         let activeSpaceIndex = 0, activeSpace = 'RGB';
         let normalsMap = {};
@@ -296,7 +329,7 @@
         }
 
         if (isMobile) {
-            // --- MOBILE SETUP (Single Viewport + Morphing) ---
+            // --- MOBILE SETUP ---
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(25, 20, 35);
@@ -324,10 +357,16 @@
             const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: sharedGlowTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false }));
             glowSprite.visible = false; scene.add(glowSprite);
 
-            spaces.forEach(s => axisGroups[s] = createAxisLines(s));
-            spaces.forEach(s => axisGroups[s].visible = (s === activeSpace));
+            spaces.forEach(s => {
+                axisGroups[s] = createAxisLines(s);
+                scene.add(axisGroups[s]);
+                axisGroups[s].visible = (s === activeSpace);
+            });
 
-            // Mobile Inputs & Touch
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
             let mouseX = -1000, mouseY = -1000, isTouching = false;
             window.addEventListener('pointermove', e => { mouseX = (e.clientX/window.innerWidth)*2-1; mouseY = -(e.clientY/window.innerHeight)*2+1; isTouching = true; document.getElementById('inspector-card').classList.add('active'); });
             
@@ -358,17 +397,11 @@
 
                 const activeGroup = axisGroups[activeSpace];
                 activeGroup.scale.set(currentSpread, currentSpread, currentSpread);
-                activeGroup.children.forEach(child => {
-                    if(child.isSprite) {
-                        child.position.set(child.userData.nx * currentSpread, child.userData.ny * currentSpread, child.userData.nz * currentSpread);
-                        child.scale.set(currentSpread * 0.4, currentSpread * 0.2, 1);
-                    }
-                });
 
                 let globalHoveredIdx = -1;
                 if (!enableTurbulence && isTouching) {
                     raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
-                    raycaster.params.Points.threshold = currentSpread * 0.02;
+                    raycaster.params.Points.threshold = currentSpread * 0.03;
                     const intersects = raycaster.intersectObject(pointCloud);
                     if (intersects.length > 0) {
                         globalHoveredIdx = intersects[0].index;
@@ -376,7 +409,10 @@
                         const lum = 0.2126*r + 0.7152*g + 0.0722*b;
                         const effR = lum + (r - lum)*currentSatMultiplier, effG = lum + (g - lum)*currentSatMultiplier, effB = lum + (b - lum)*currentSatMultiplier;
 
-                        const sR = Math.round(effR*255).toString(16).padStart(2,'0'), sG = Math.round(effG*255).toString(16).padStart(2,'0'), sB = Math.round(effB*255).toString(16).padStart(2,'0');
+                        const sR = Math.min(255, Math.max(0, Math.round(effR*255))).toString(16).padStart(2,'0');
+                        const sG = Math.min(255, Math.max(0, Math.round(effG*255))).toString(16).padStart(2,'0');
+                        const sB = Math.min(255, Math.max(0, Math.round(effB*255))).toString(16).padStart(2,'0');
+                        
                         document.getElementById('ui-swatch').style.backgroundColor = `#${sR}${sG}${sB}`;
                         document.getElementById('val-rgb').innerHTML = `${Math.round(effR*255)} ${Math.round(effG*255)} ${Math.round(effB*255)}`;
                         const hsv = rgbToHsv(effR, effG, effB); document.getElementById('val-hsv').innerHTML = `${Math.round(hsv[0]*360)}° ${Math.round(hsv[1]*100)}% ${Math.round(hsv[2]*100)}%`;
@@ -436,7 +472,7 @@
             animateMobile();
 
         } else {
-            // --- DESKTOP SETUP (Multi-Viewport Side-by-Side) ---
+            // --- DESKTOP SETUP ---
             function createSpaceViewport(type) {
                 const scene = new THREE.Scene();
                 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
@@ -463,8 +499,8 @@
                 glowSprite.visible = false; scene.add(glowSprite);
 
                 const axes = createAxisLines(type);
+                scene.add(axes);
 
-                // DOM panels
                 const containerDom = document.createElement('div'); containerDom.className = 'viewport-container';
                 const labelDom = document.createElement('div'); labelDom.className = 'viewport-label'; labelDom.innerText = type; containerDom.appendChild(labelDom); document.body.appendChild(containerDom);
 
@@ -483,8 +519,12 @@
             document.getElementById('check-hsl').addEventListener('change', e => { views[2].active = e.target.checked; });
             document.getElementById('check-cmyk').addEventListener('change', e => { views[3].active = e.target.checked; });
 
+            window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); });
+
             const raycaster = new THREE.Raycaster();
+            const tempVec = new THREE.Vector3();
             let mouseX = -1000, mouseY = -1000, isMouseMoving = false;
+            
             window.addEventListener('pointermove', e => {
                 mouseX = e.clientX; mouseY = e.clientY; isMouseMoving = true;
                 const activeViews = views.filter(v => v.active);
@@ -495,8 +535,6 @@
                 }
             });
             window.addEventListener('pointerleave', () => { mouseX = -1000; mouseY = -1000; });
-
-            const tempVec = new THREE.Vector3();
 
             function animateDesktop() {
                 requestAnimationFrame(animateDesktop);
@@ -511,21 +549,28 @@
 
                 const vw = window.innerWidth / activeViews.length, vh = window.innerHeight;
                 let globalHoverIdx = -1, gR = 0, gG = 0, gB = 0, gEffR = 0, gEffG = 0, gEffB = 0;
+                
+                let activeViewHovered = null;
+                let lX = -1000, lY = -1000;
 
-                if (!enableTurbulence && mouseX >= 0 && mouseX <= window.innerWidth && mouseY >= 0 && mouseY <= window.innerHeight) {
+                if (mouseX >= 0 && mouseX <= window.innerWidth && mouseY >= 0 && mouseY <= window.innerHeight) {
                     const hIdx = Math.floor(mouseX / vw);
-                    const aView = activeViews[hIdx];
-                    if (aView) {
-                        const lX = ((mouseX - (hIdx * vw)) / vw) * 2 - 1, lY = -(mouseY / vh) * 2 + 1;
-                        raycaster.setFromCamera(new THREE.Vector2(lX, lY), aView.camera);
-                        raycaster.params.Points.threshold = currentSpread * 0.015;
-                        const intersects = raycaster.intersectObject(aView.points);
-                        if (intersects.length > 0) {
-                            globalHoverIdx = intersects[0].index;
-                            gR = originalRgb[globalHoverIdx*3]; gG = originalRgb[globalHoverIdx*3+1]; gB = originalRgb[globalHoverIdx*3+2];
-                            const lum = 0.2126*gR + 0.7152*gG + 0.0722*gB;
-                            gEffR = lum + (gR - lum)*currentSatMultiplier; gEffG = lum + (gG - lum)*currentSatMultiplier; gEffB = lum + (gB - lum)*currentSatMultiplier;
-                        }
+                    activeViewHovered = activeViews[hIdx];
+                    if (activeViewHovered) {
+                        lX = ((mouseX - (hIdx * vw)) / vw) * 2 - 1;
+                        lY = -(mouseY / vh) * 2 + 1;
+                        raycaster.setFromCamera(new THREE.Vector2(lX, lY), activeViewHovered.camera);
+                    }
+                }
+
+                if (!enableTurbulence && activeViewHovered) {
+                    raycaster.params.Points.threshold = currentSpread * 0.03; 
+                    const intersects = raycaster.intersectObject(activeViewHovered.points);
+                    if (intersects.length > 0) {
+                        globalHoverIdx = intersects[0].index;
+                        gR = originalRgb[globalHoverIdx*3]; gG = originalRgb[globalHoverIdx*3+1]; gB = originalRgb[globalHoverIdx*3+2];
+                        const lum = 0.2126*gR + 0.7152*gG + 0.0722*gB;
+                        gEffR = lum + (gR - lum)*currentSatMultiplier; gEffG = lum + (gG - lum)*currentSatMultiplier; gEffB = lum + (gB - lum)*currentSatMultiplier;
                     }
                 }
 
@@ -540,14 +585,22 @@
 
                     const posArr = v.points.geometry.attributes.position.array;
 
+                    let localRay = null;
+                    if (enableTurbulence && activeViewHovered === v && isMouseMoving) {
+                        localRay = raycaster.ray.clone().applyMatrix4(v.points.matrixWorld.clone().invert());
+                    }
+
                     if (!enableTurbulence && globalHoverIdx !== -1) {
                         let text = '';
-                        if (v.type === 'RGB') text = `R: ${gR.toFixed(2)} G: ${gG.toFixed(2)} B: ${gB.toFixed(2)}`;
-                        else if (v.type === 'HSV') { const hsv = rgbToHsv(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsv[0]*360)}° S: ${hsv[1].toFixed(2)} V: ${hsv[2].toFixed(2)}`; }
-                        else if (v.type === 'HSL') { const hsl = rgbToHsl(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsl[0]*360)}° S: ${hsl[1].toFixed(2)} L: ${hsl[2].toFixed(2)}`; }
+                        if (v.type === 'RGB') text = `R: ${Math.round(gEffR*255)} G: ${Math.round(gEffG*255)} B: ${Math.round(gEffB*255)}`;
+                        else if (v.type === 'HSV') { const hsv = rgbToHsv(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsv[0]*360)}° S: ${Math.round(hsv[1]*100)}% V: ${Math.round(hsv[2]*100)}%`; }
+                        else if (v.type === 'HSL') { const hsl = rgbToHsl(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsl[0]*360)}° S: ${Math.round(hsl[1]*100)}% L: ${Math.round(hsl[2]*100)}%`; }
                         else if (v.type === 'CMYK') { const cmyk = rgbToCmyk(gEffR, gEffG, gEffB); text = `C:${Math.round(cmyk[0]*100)}% M:${Math.round(cmyk[1]*100)}% Y:${Math.round(cmyk[2]*100)}% K:${Math.round(cmyk[3]*100)}%`; }
 
-                        const sR = Math.round(gEffR*255).toString(16).padStart(2,'0'), sG = Math.round(gEffG*255).toString(16).padStart(2,'0'), sB = Math.round(gEffB*255).toString(16).padStart(2,'0');
+                        const sR = Math.min(255, Math.max(0, Math.round(gEffR*255))).toString(16).padStart(2,'0');
+                        const sG = Math.min(255, Math.max(0, Math.round(gEffG*255))).toString(16).padStart(2,'0');
+                        const sB = Math.min(255, Math.max(0, Math.round(gEffB*255))).toString(16).padStart(2,'0');
+                        
                         v.swatchDom.style.backgroundColor = `#${sR}${sG}${sB}`; v.readoutDom.innerText = text; v.inspectorPanel.style.display = 'flex';
                     }
 
@@ -560,6 +613,17 @@
                         const pIdx = j * 3;
                         let tx = v.normals[pIdx]*currentSpread, ty = v.normals[pIdx+1]*currentSpread, tz = v.normals[pIdx+2]*currentSpread;
 
+                        if (localRay) {
+                            tempVec.set(posArr[pIdx], posArr[pIdx+1], posArr[pIdx+2]);
+                            const distToRay = localRay.distanceToPoint(tempVec);
+                            if (distToRay < currentSpread / 6.0) {
+                                const f = (currentSpread / 6.0 - distToRay) * 0.3; 
+                                posArr[pIdx] += (Math.random() - 0.5) * f;
+                                posArr[pIdx+1] += (Math.random() - 0.5) * f;
+                                posArr[pIdx+2] += (Math.random() - 0.5) * f;
+                            }
+                        }
+
                         if (!enableTurbulence && globalHoverIdx !== -1 && j !== globalHoverIdx) {
                             const dx = tx - hx, dy = ty - hy, dz = tz - hz, distSq = dx*dx + dy*dy + dz*dz;
                             if (distSq > 0.0001 && distSq < 225.0) {
@@ -567,6 +631,7 @@
                                 tx += (dx / dist)*f; ty += (dy / dist)*f; tz += (dz / dist)*f;
                             }
                         }
+                        
                         posArr[pIdx] += (tx - posArr[pIdx]) * 0.08;
                         posArr[pIdx+1] += (ty - posArr[pIdx+1]) * 0.08;
                         posArr[pIdx+2] += (tz - posArr[pIdx+2]) * 0.08;
@@ -588,7 +653,7 @@
             animateDesktop();
         }
 
-        // Global Sliders Update Hook
+        // --- GLOBAL UI HOOKS ---
         function triggerGlobalUpdate() {
             if (isMobile) {
                 spaces.forEach(s => normalsMap[s] = computeCoordinatesForType(s, currentSatMultiplier, currentHueMin, currentHueMax));
@@ -602,11 +667,26 @@
             }
         }
 
+        document.getElementById('check-turbulence').addEventListener('change', e => { 
+            enableTurbulence = e.target.checked; 
+            
+            if(enableTurbulence) document.body.classList.remove('inspector-mode');
+            else document.body.classList.add('inspector-mode');
+            
+            if (isMobile) {
+                controls.enablePan = !enableTurbulence;
+                if (enableTurbulence) glowSprite.visible = false;
+            } else {
+                views.forEach(v => {
+                    v.controls.enablePan = !enableTurbulence;
+                    if(enableTurbulence) v.glowSprite.visible = false;
+                });
+            }
+        });
+        
         document.getElementById('satSlider').addEventListener('input', e => { currentSatMultiplier = parseFloat(e.target.value); document.getElementById('satValue').innerText = currentSatMultiplier.toFixed(2); triggerGlobalUpdate(); });
         document.getElementById('hueMinSlider').addEventListener('input', e => { currentHueMin = parseFloat(e.target.value); document.getElementById('hueMinValue').innerText = currentHueMin; triggerGlobalUpdate(); });
         document.getElementById('hueMaxSlider').addEventListener('input', e => { currentHueMax = parseFloat(e.target.value); document.getElementById('hueMaxValue').innerText = currentHueMax; triggerGlobalUpdate(); });
-
-        window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); });
     </script>
 </body>
 </html>
