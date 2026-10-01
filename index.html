@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Three.js Color Spaces - Adaptive Visualizer</title>
+    <title>Color Spaces - Adaptive Visualizer</title>
     <style>
         body {
             margin: 0;
@@ -73,7 +73,7 @@
         .viewport-container { position: absolute; bottom: 30px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 5; }
         .viewport-label { color: rgba(255, 255, 255, 0.4); font-size: 28px; font-weight: bold; letter-spacing: 2px; }
         .viewport-inspector-panel { position: absolute; top: 20px; display: none; align-items: center; gap: 10px; pointer-events: none; z-index: 10; transform: translateX(-100%); }
-        .viewport-readout-text { font-family: monospace; font-size: 13px; color: #0ff; background: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(0,255,255,0.4); }
+        .viewport-readout-text { font-family: monospace; font-size: 13px; color: #0ff; background: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(0,255,255,0.4); white-space: nowrap; }
         .viewport-swatch { 
             width: 32px; 
             height: 32px; 
@@ -94,6 +94,7 @@
                 <label><input type="checkbox" id="check-hsv" checked> HSV</label>
                 <label><input type="checkbox" id="check-hsl" checked> HSL</label>
                 <label><input type="checkbox" id="check-cmyk" checked> CMYK</label>
+                <label style="text-transform: none;"><input type="checkbox" id="check-lab" checked> Lab</label>
             </div>
         </div>
         <div class="control-group">
@@ -127,6 +128,7 @@
             <div class="val-label">HSV</div><div class="val-data" id="val-hsv">---</div>
             <div class="val-label">HSL</div><div class="val-data" id="val-hsl">---</div>
             <div class="val-label">CMYK</div><div class="val-data" id="val-cmyk">---</div>
+            <div class="val-label">Lab</div><div class="val-data" id="val-lab">---</div>
         </div>
     </div>
 
@@ -188,9 +190,34 @@
             return [c, m, y, k];
         }
 
+        function rgbToLab(r, g, b) {
+            // Un-compand sRGB to Linear RGB
+            let rL = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+            let gL = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+            let bL = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+            // Linear RGB to CIE XYZ (D65 Illuminant)
+            let x = (rL * 0.4124 + gL * 0.3576 + bL * 0.1805) * 100.0;
+            let y = (rL * 0.2126 + gL * 0.7152 + bL * 0.0722) * 100.0;
+            let z = (rL * 0.0193 + gL * 0.1192 + bL * 0.9505) * 100.0;
+
+            // CIE XYZ to CIE L*a*b*
+            let refX = 95.047, refY = 100.000, refZ = 108.883;
+            let xR = x / refX, yR = y / refY, zR = z / refZ;
+
+            xR = xR > 0.008856 ? Math.pow(xR, 1/3) : (7.787 * xR) + (16 / 116);
+            yR = yR > 0.008856 ? Math.pow(yR, 1/3) : (7.787 * yR) + (16 / 116);
+            zR = zR > 0.008856 ? Math.pow(zR, 1/3) : (7.787 * zR) + (16 / 116);
+
+            let L = (116 * yR) - 16;
+            let a = 500 * (xR - yR);
+            let bVal = 200 * (yR - zR);
+            return [L, a, bVal];
+        }
+
         function createLabel(text, nx, ny, nz) {
             const canvas = document.createElement('canvas');
-            canvas.width = 768; canvas.height = 256; // Increased width to prevent text clipping
+            canvas.width = 768; canvas.height = 256; 
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.font = 'bold 64px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -202,7 +229,7 @@
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
             
             sprite.position.set(nx, ny, nz);
-            sprite.scale.set(0.35, 0.125, 1); // Widened aspect ratio for longer strings like Achromatic Axis
+            sprite.scale.set(0.35, 0.125, 1); 
             
             return sprite;
         }
@@ -249,6 +276,11 @@
                 }
                 group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts), mat));
                 labels.push(createLabel(type === 'HSV' ? 'Value' : 'Lightness', -0.8, 0.6, 0), createLabel('Hue', 0.8, -0.8, 0), createLabel('Saturation', 0.3, -0.8, 0.15));
+            } else if (type === 'Lab') {
+                addLine([0, -0.5, 0], [0, 0.5, 0]); // L* axis (Y)
+                addLine([-0.5, 0, 0], [0.5, 0, 0]); // a* axis (X)
+                addLine([0, 0, -0.5], [0, 0, 0.5]); // b* axis (Z)
+                labels.push(createLabel('L* (Lightness)', 0, 0.6, 0), createLabel('+a* (Red)', 0.65, 0, 0), createLabel('-a* (Green)', -0.65, 0, 0), createLabel('+b* (Yellow)', 0, 0, 0.65), createLabel('-b* (Blue)', 0, 0, -0.65));
             }
             labels.forEach(l => group.add(l));
             return group;
@@ -267,7 +299,7 @@
 
         const originalRgb = new Float32Array(totalPoints * 3);
         const colors = new Float32Array(totalPoints * 3);
-        const spaces = ['RGB', 'HSV', 'HSL', 'CMYK'];
+        const spaces = ['RGB', 'HSV', 'HSL', 'CMYK', 'Lab'];
         
         let views = [];
         let pointCloud, mobilePositions, activeNormalsArray;
@@ -317,6 +349,11 @@
                             nx = inSlice ? (1.0 - effR) - 0.5 : (1.0 - lum) - 0.5;
                             ny = inSlice ? (1.0 - effG) - 0.5 : (1.0 - lum) - 0.5;
                             nz = inSlice ? (1.0 - effB) - 0.5 : (1.0 - lum) - 0.5;
+                        } else if (type === 'Lab') {
+                            const lab = rgbToLab(effR, effG, effB);
+                            nx = inSlice ? lab[1] / 256.0 : 0;
+                            ny = inSlice ? (lab[0] / 100.0) - 0.5 : -0.5;
+                            nz = inSlice ? lab[2] / 256.0 : 0;
                         }
 
                         normals[idx] = nx; normals[idx+1] = ny; normals[idx+2] = nz;
@@ -418,6 +455,7 @@
                         const hsv = rgbToHsv(effR, effG, effB); document.getElementById('val-hsv').innerHTML = `${Math.round(hsv[0]*360)}° ${Math.round(hsv[1]*100)}% ${Math.round(hsv[2]*100)}%`;
                         const hsl = rgbToHsl(effR, effG, effB); document.getElementById('val-hsl').innerHTML = `${Math.round(hsl[0]*360)}° ${Math.round(hsl[1]*100)}% ${Math.round(hsl[2]*100)}%`;
                         const cmyk = rgbToCmyk(effR, effG, effB); document.getElementById('val-cmyk').innerHTML = `${Math.round(cmyk[0]*100)}% ${Math.round(cmyk[1]*100)}% ${Math.round(cmyk[2]*100)}% ${Math.round(cmyk[3]*100)}%`;
+                        const lab = rgbToLab(effR, effG, effB); document.getElementById('val-lab').innerHTML = `L*:${Math.round(lab[0])} a*:${Math.round(lab[1])} b*:${Math.round(lab[2])}`;
                         
                         document.querySelectorAll('.val-data').forEach(el => el.classList.remove('highlight'));
                         document.getElementById(`val-${activeSpace.toLowerCase()}`).classList.add('highlight');
@@ -512,12 +550,13 @@
                 return { type, scene, camera, controls, points, glowSprite, normals, axes, containerDom, inspectorPanel, readoutDom, swatchDom, active: true };
             }
 
-            views = [createSpaceViewport('RGB'), createSpaceViewport('HSV'), createSpaceViewport('HSL'), createSpaceViewport('CMYK')];
+            views = [createSpaceViewport('RGB'), createSpaceViewport('HSV'), createSpaceViewport('HSL'), createSpaceViewport('CMYK'), createSpaceViewport('Lab')];
 
             document.getElementById('check-rgb').addEventListener('change', e => { views[0].active = e.target.checked; });
             document.getElementById('check-hsv').addEventListener('change', e => { views[1].active = e.target.checked; });
             document.getElementById('check-hsl').addEventListener('change', e => { views[2].active = e.target.checked; });
             document.getElementById('check-cmyk').addEventListener('change', e => { views[3].active = e.target.checked; });
+            document.getElementById('check-lab').addEventListener('change', e => { views[4].active = e.target.checked; });
 
             window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); });
 
@@ -596,6 +635,7 @@
                         else if (v.type === 'HSV') { const hsv = rgbToHsv(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsv[0]*360)}° S: ${Math.round(hsv[1]*100)}% V: ${Math.round(hsv[2]*100)}%`; }
                         else if (v.type === 'HSL') { const hsl = rgbToHsl(gEffR, gEffG, gEffB); text = `H: ${Math.round(hsl[0]*360)}° S: ${Math.round(hsl[1]*100)}% L: ${Math.round(hsl[2]*100)}%`; }
                         else if (v.type === 'CMYK') { const cmyk = rgbToCmyk(gEffR, gEffG, gEffB); text = `C:${Math.round(cmyk[0]*100)}% M:${Math.round(cmyk[1]*100)}% Y:${Math.round(cmyk[2]*100)}% K:${Math.round(cmyk[3]*100)}%`; }
+                        else if (v.type === 'Lab') { const lab = rgbToLab(gEffR, gEffG, gEffB); text = `L*:${Math.round(lab[0])} a*:${Math.round(lab[1])} b*:${Math.round(lab[2])}`; }
 
                         const sR = Math.min(255, Math.max(0, Math.round(gEffR*255))).toString(16).padStart(2,'0');
                         const sG = Math.min(255, Math.max(0, Math.round(gEffG*255))).toString(16).padStart(2,'0');
